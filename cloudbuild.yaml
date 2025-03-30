@@ -1,61 +1,61 @@
 steps:
-  # Step 1: Build the container image (No changes here)
+  # Step 1: Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
         'build',
         '-t',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA',
+        'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA', # Changed region
         '-t',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest',
-        '.', # Build context is the current directory
+        'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest', # Changed region
+        '.',
         '-f',
-        'Dockerfile', # Specify the Dockerfile
+        'Dockerfile',
       ]
 
   # Step 2a: Explicitly push the image tagged with COMMIT_SHA
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-commit-sha' # Optional ID for clarity
+    id: 'push-commit-sha'
     args:
       [
         'push',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA'
+        'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA' # Changed region
       ]
 
   # Step 2b: Explicitly push the image tagged with 'latest'
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-latest' # Optional ID for clarity
+    id: 'push-latest'
     args:
       [
         'push',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest'
+        'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest' # Changed region
       ]
     # Ensure this step runs after the commit sha push (usually implicit, but waitFor can be used if needed)
     # waitFor: ['push-commit-sha']
 
-  # Step 3: Deploy container image to Cloud Run (No changes here)
+  # Step 3: Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       [
         'run',
         'deploy',
-        'dns-analyser', # Name of your Cloud Run service
+        'dns-analyser',
         '--image',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA',
+        'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA', # Changed region
         '--region',
-        'europe-west6', # Set Cloud Run region to Zurich
+        'europe-west1', # Changed region
         '--platform',
         'managed',
-        '--allow-unauthenticated', # Add this if you want public access, remove if not
-        '--quiet', # Suppress interactive prompts
+        '--allow-unauthenticated',
+        '--quiet',
       ]
 
-# Specify the images to push after the build (This section might be redundant now but doesn't hurt)
+# Specify the images to push after the build
 images:
-  - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA'
-  - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest'
+  - 'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA' # Changed region
+  - 'europe-west1-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest' # Changed region
 
-# Set build options, including logging (No changes here)
+# Set build options, including logging
 options:
   logging: CLOUD_LOGGING_ONLY
