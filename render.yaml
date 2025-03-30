@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: dns-analyser
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: ./start.sh
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.9
