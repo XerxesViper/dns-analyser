@@ -577,6 +577,6 @@ st.markdown("""
 This DNS Security Analyzer checks for common DNS misconfigurations and security issues.
 It is intended for educational purposes and security assessments.
 
-Developed by : [Me](www.xerxesviper.fyi)
+Developed by: <a href="https://www.xerxesviper.fyi" target="_blank">Me</a>
+""", unsafe_allow_html=True)
 
-""")
