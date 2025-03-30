@@ -252,11 +252,9 @@ def check_dnssec(domain):
                 "records": [str(rdata) for rdata in ds_answers]
             }
         except dns.resolver.NoAnswer:
-            st.write("here")
             # No DS records, but let's check for DNSKEY records
             pass
         except Exception:
-            st.write("here2")
             # Other error with DS, try DNSKEY
             pass
 
@@ -269,11 +267,9 @@ def check_dnssec(domain):
                 "records": [str(rdata) for rdata in dnskey_answers]
             }
         except dns.resolver.NoAnswer:
-            st.write("here3")
             # No DNSKEY records either
             pass
         except Exception:
-            st.write("here4")
             # Other error with DNSKEY
             pass
 
@@ -285,7 +281,6 @@ def check_dnssec(domain):
             # Try to get a signed response
             answer = resolver.resolve(domain, 'A')
             if answer.response.flags & dns.flags.AD:
-                st.write("here5")
                 return {
                     "status": "success",
                     "message": "DNSSEC validation successful (AD flag set).",
@@ -296,7 +291,6 @@ def check_dnssec(domain):
                 if parent_domain and len(parent_domain.split('.')) > 1:
                     try:
                         parent_ds = dns.resolver.resolve(domain, 'DS', raise_on_no_answer=False)
-                        st.write("here6")
                         if parent_ds:
                             return {
                                 "status": "success",
@@ -304,10 +298,8 @@ def check_dnssec(domain):
                                 "records": [str(rdata) for rdata in parent_ds]
                             }
                     except Exception:
-                        st.write("here7")
                         pass
         except Exception:
-            st.write("here8")
             pass
 
         # If we get here, DNSSEC is likely not configured
