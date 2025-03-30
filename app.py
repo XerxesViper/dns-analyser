@@ -14,6 +14,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# Add this near the top of your app
+st.markdown("""
+<style>
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+
 # Title and description
 st.title("DNS Security Analyzer")
 st.markdown("""
