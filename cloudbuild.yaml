@@ -1,0 +1,51 @@
+steps:
+  # Step 1: Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA',
+        '-t',
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest',
+        '.', # Build context is the current directory
+        '-f',
+        'Dockerfile', # Specify the Dockerfile
+      ]
+
+  # Step 2: Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser', # Push both tags (latest and commit sha)
+      ]
+
+  # Step 3: Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'dns-analyser', # Name of your Cloud Run service
+        '--image',
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA',
+        '--region',
+        'europe-west6', # Set Cloud Run region to Zurich
+        '--platform',
+        'managed',
+        '--allow-unauthenticated', # Add this if you want public access, remove if not
+        '--quiet', # Suppress interactive prompts
+      ]
+
+# Specify the images to push after the build
+images:
+  - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA'
+  - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest'
+
+# Set build options, including logging
+options:
+  logging: CLOUD_LOGGING_ONLY # This explicitly sets the logging mode
+  # Optional: Specify machine type if needed
+  # machineType: 'N1_HIGHCPU_8'
