@@ -25,4 +25,5 @@ ENV PYTHONUNBUFFERED=TRUE
 # Run app.py when the container launches using Streamlit
 # Listen on 0.0.0.0 and the port specified by Cloud Run ($PORT)
 # --server.headless=true is recommended for containerized environments
-CMD ["streamlit", "run", "app.py", "--server.port", "$PORT", "--server.address", "0.0.0.0", "--server.headless", "true"]
+# Use shell form for CMD to ensure $PORT expansion
+CMD streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
