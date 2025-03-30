@@ -650,3 +650,4 @@ It is intended for educational purposes and security assessments.
     For suggestions or comments, please contact me at: <a href="mailto:xerxesviper@025609.xyz">xerxesviper@025609.xyz</a>
 </div>
 """, unsafe_allow_html=True)
+
