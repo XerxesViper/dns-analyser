@@ -609,6 +609,27 @@ if st.button("Analyze"):
     else:
         st.warning("Please enter a domain name first.")
 
+with st.expander("Understanding Your DNS Security Score"):
+    st.markdown("""
+    ### How the DNS Security Score is Calculated
+
+    Your domain's DNS security score is based on several key factors:
+
+    | Factor | Impact | Why It Matters |
+    |--------|--------|----------------|
+    | SPF Record | -15 points if missing | Prevents email spoofing |
+    | DMARC Record | -15 points if missing | Controls email authentication policy |
+    | DNSSEC | -10 points if not implemented | Protects against DNS spoofing |
+    | Zone Transfer | -25 points if allowed | Prevents information disclosure |
+    | Multiple SPF Records | -10 points | Causes email delivery issues |
+    | SPF with +all | -20 points | Allows anyone to send as your domain |
+    | DMARC with p=none | -10 points | Only monitors but doesn't protect |
+
+    A score of 90-100 indicates excellent DNS security configuration.\n
+    A score of 70-89 indicates good security with some improvements needed.\n
+    A score below 70 indicates significant security issues that should be addressed.
+    """)
+
 # Add footer with information
 st.markdown("---")
 st.markdown("""
