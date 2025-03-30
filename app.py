@@ -14,13 +14,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# Add this near the top of your app
-st.markdown("""
+hide_menu_style = """
 <style>
+#MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
+.stDeployButton {display:none;}
+#stDecoration {display:none;}
 </style>
-""", unsafe_allow_html=True)
-
+"""
+st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 # Title and description
 st.title("DNS Security Analyzer")
