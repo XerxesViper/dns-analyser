@@ -1,5 +1,5 @@
 steps:
-  # Step 1: Build the container image
+  # Step 1: Build the container image (No changes here)
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
@@ -13,15 +13,27 @@ steps:
         'Dockerfile', # Specify the Dockerfile
       ]
 
-  # Step 2: Push the container image to Artifact Registry
+  # Step 2a: Explicitly push the image tagged with COMMIT_SHA
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-commit-sha' # Optional ID for clarity
     args:
       [
         'push',
-        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser', # Push both tags (latest and commit sha)
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA'
       ]
 
-  # Step 3: Deploy container image to Cloud Run
+  # Step 2b: Explicitly push the image tagged with 'latest'
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-latest' # Optional ID for clarity
+    args:
+      [
+        'push',
+        'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest'
+      ]
+    # Ensure this step runs after the commit sha push (usually implicit, but waitFor can be used if needed)
+    # waitFor: ['push-commit-sha']
+
+  # Step 3: Deploy container image to Cloud Run (No changes here)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -39,13 +51,11 @@ steps:
         '--quiet', # Suppress interactive prompts
       ]
 
-# Specify the images to push after the build
+# Specify the images to push after the build (This section might be redundant now but doesn't hurt)
 images:
   - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:$COMMIT_SHA'
   - 'europe-west6-docker.pkg.dev/marine-set-455317-i1/dns-analyser-repo/dns-analyser:latest'
 
-# Set build options, including logging
+# Set build options, including logging (No changes here)
 options:
-  logging: CLOUD_LOGGING_ONLY # This explicitly sets the logging mode
-  # Optional: Specify machine type if needed
-  # machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
