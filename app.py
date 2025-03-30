@@ -596,19 +596,6 @@ def display_results(results):
     st.caption(f"Analysis completed at: {results['timestamp']}")
 
 
-# Main app logic
-if st.button("Analyze"):
-    if domain_name:
-        sanitized_domain = sanitize_domain(domain_name)
-        if sanitized_domain:
-            st.info(f"Analyzing domain: {sanitized_domain}")
-            results = analyze_domain(sanitized_domain)
-            display_results(results)
-        else:
-            st.error("Invalid domain name format. Please enter a valid domain like 'example.com'")
-    else:
-        st.warning("Please enter a domain name first.")
-
 with st.expander("Understanding Your DNS Security Score"):
     st.markdown("""
     ### How the DNS Security Score is Calculated
@@ -630,6 +617,19 @@ with st.expander("Understanding Your DNS Security Score"):
     A score below 70 indicates significant security issues that should be addressed.
     """)
 
+# Main app logic
+if st.button("Analyze"):
+    if domain_name:
+        sanitized_domain = sanitize_domain(domain_name)
+        if sanitized_domain:
+            st.info(f"Analyzing domain: {sanitized_domain}")
+            results = analyze_domain(sanitized_domain)
+            display_results(results)
+        else:
+            st.error("Invalid domain name format. Please enter a valid domain like 'example.com'")
+    else:
+        st.warning("Please enter a domain name first.")
+
 # Add footer with information
 st.markdown("---")
 st.markdown("""
@@ -648,4 +648,3 @@ It is intended for educational purposes and security assessments.
     For suggestions or comments, please contact me at: <a href="mailto:xerxesviper@025609.xyz">xerxesviper@025609.xyz</a>
 </div>
 """, unsafe_allow_html=True)
-
