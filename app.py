@@ -27,9 +27,24 @@ st.info("""
 or proxy services you may be using, as they can sometimes interfere with DNS lookups.
 """, icon="ℹ️")
 
-
 # Input for domain name
 domain_name = st.text_input("Domain Name:", placeholder="example.com OR www.example.com")
+
+
+def domain_exists(domain):
+    try:
+        # Try to resolve the domain's A record
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = ['8.8.8.8', '1.1.1.1']  # Use reliable public DNS
+        resolver.resolve(domain, 'A')
+        return True
+    except dns.resolver.NXDOMAIN:
+        # NXDOMAIN specifically means the domain doesn't exist
+        return False
+    except Exception:
+        # For other errors, we'll still try to analyze
+        # (could be just that A or AAAA (because of IPv6) records don't exist but the domain does)
+        return True
 
 
 def sanitize_domain(input_domain):
@@ -409,6 +424,18 @@ def calculate_score(results):
 
 # Main analysis function
 def analyze_domain(domain):
+    # First check if domain exists
+    if not domain_exists(domain):
+        return {
+            "domain_exists": False,
+            "message": "This domain does not exist in DNS records.",
+            "score": {
+                "score": 0,
+                "reasons": ["Domain does not exist (-100)"]
+            },
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
     with st.spinner(f"Analyzing {domain}..."):
         # Get basic DNS records
         dns_records = check_basic_dns(domain)
@@ -439,11 +466,21 @@ def analyze_domain(domain):
         score_result = calculate_score(results)
         results["score"] = score_result
 
+        results["domain_exists"] = True
         return results
 
 
 # Display results function
 def display_results(results):
+    # Check if domain exists
+    if not results.get("domain_exists", True):
+        st.error(results["message"])
+        st.error("Security Score: 0/100")
+        st.write("Score deductions:")
+        st.write("- Domain does not exist (-100)")
+        st.caption(f"Analysis completed at: {results['timestamp']}")
+        return
+
     # Display security score
     score = results["score"]["score"]
     if score >= 90:
@@ -577,6 +614,15 @@ st.markdown("""
 This DNS Security Analyzer checks for common DNS misconfigurations and security issues.
 It is intended for educational purposes and security assessments.
 
-Developed by: <a href="https://www.xerxesviper.fyi" target="_blank">Me</a>
+---
+
+<div style="display: flex; justify-content: start; gap: 20px; flex-wrap: wrap;">
+    <div>Developed by:- <a href="https://www.xerxesviper.fyi" target="_blank">XerxesViper</a></div>
+    <div><a href="https://twitter.com/XerxesViper" target="_blank">Twitter</a></div>
+    <div><a href="https://github.com/XerxesViper" target="_blank">GitHub</a></div>
+</div>
+<div style="margin-top: 10px;">
+    For suggestions or comments, please contact me at: <a href="mailto:xerxesviper@025609.xyz">xerxesviper@025609.xyz</a>
+</div>
 """, unsafe_allow_html=True)
 
