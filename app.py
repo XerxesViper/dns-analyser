@@ -270,76 +270,76 @@ def check_dmarc(domain):
 
 # Function to check DNSSEC
 def check_dnssec(domain):
-    st.write("Checking DNSSEC Records")
+    st.write("Checking DNSSEC Records")  # Keep for debugging if needed
+
+    # --- Use a consistent resolver for all checks within this function ---
+    # Create a resolver instance ONCE
+    resolver = dns.resolver.Resolver()
+    # Explicitly set reliable public nameservers known to support DNSSEC well
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+    # Set a reasonable timeout
+    resolver.timeout = 2.0
+    resolver.lifetime = 5.0
+    # --- End resolver configuration ---
 
     try:
-        # First try to check for DS records
+        # First try to check for DS records using the configured resolver
         try:
-            ds_answers = dns.resolver.resolve(domain, 'DS')
-            st.write("Checking DS")
+            # Use the configured resolver instance
+            ds_answers = resolver.resolve(domain, 'DS')
+            # st.write("Checking DS") # Debugging line
             return {
                 "status": "success",
                 "message": "DNSSEC is configured with DS records present.",
                 "records": [str(rdata) for rdata in ds_answers]
             }
         except dns.resolver.NoAnswer:
-            # No DS records, but let's check for DNSKEY records
-            pass
-        except Exception:
-            # Other error with DS, try DNSKEY
-            pass
+            pass  # Continue if no DS records
+        except Exception as e:
+            st.write(f"DS check error: {e}")  # Log specific error
+            pass  # Continue on other DS errors
 
-        # Try to check for DNSKEY records
+        # Try to check for DNSKEY records using the configured resolver
         try:
-            dnskey_answers = dns.resolver.resolve(domain, 'DNSKEY')
+            # Use the configured resolver instance
+            dnskey_answers = resolver.resolve(domain, 'DNSKEY')
             return {
                 "status": "success",
                 "message": "DNSSEC is configured with DNSKEY records present.",
                 "records": [str(rdata) for rdata in dnskey_answers]
             }
         except dns.resolver.NoAnswer:
-            # No DNSKEY records either
-            pass
-        except Exception:
-            # Other error with DNSKEY
-            pass
+            pass  # Continue if no DNSKEY records
+        except Exception as e:
+            st.write(f"DNSKEY check error: {e}")  # Log specific error
+            pass  # Continue on other DNSKEY errors
 
-        # Try one more approach - check if DO flag works
-        resolver = dns.resolver.Resolver()
+        # Try the AD flag check using the configured resolver
+        # Tell the resolver we want DNSSEC data (DO bit)
         resolver.use_edns(0, dns.flags.DO, 4096)
-
         try:
-            # Try to get a signed response
-            answer = resolver.resolve(domain, 'A')
+            # Use the configured resolver instance
+            answer = resolver.resolve(domain, 'A')  # Check A record with DO flag set
             if answer.response.flags & dns.flags.AD:
                 return {
                     "status": "success",
                     "message": "DNSSEC validation successful (AD flag set).",
                 }
-            else:
-                # Last attempt - check parent domain for DS records
-                parent_domain = '.'.join(domain.split('.')[1:]) if '.' in domain else None
-                if parent_domain and len(parent_domain.split('.')) > 1:
-                    try:
-                        parent_ds = dns.resolver.resolve(domain, 'DS', raise_on_no_answer=False)
-                        if parent_ds:
-                            return {
-                                "status": "success",
-                                "message": f"DNSSEC is configured via parent domain.",
-                                "records": [str(rdata) for rdata in parent_ds]
-                            }
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+            # Removed the redundant parent DS check here as it was likely incorrect logic
+        except Exception as e:
+            st.write(f"AD flag check error: {e}")  # Log specific error
+            pass  # Continue if AD flag check fails
 
-        # If we get here, DNSSEC is likely not configured
+        # If all checks above failed, DNSSEC is likely not configured or verifiable this way
         return {
             "status": "warning",
-            "message": "DNSSEC does not appear to be configured.",
-            "recommendation": "Consider implementing DNSSEC to protect against DNS spoofing attacks."
+            "message": "DNSSEC does not appear to be configured or verifiable.",
+            "recommendation": "Consider implementing DNSSEC or check configuration."
         }
+
     except Exception as e:
+        # Catch potential errors during resolver configuration or general failures
+        st.write(f"General DNSSEC check error: {e}")  # Log specific error
         return {
             "status": "info",
             "message": f"Could not determine DNSSEC status: {str(e)}",
@@ -617,8 +617,6 @@ def display_results(results):
     st.caption(f"Analysis completed at: {results['timestamp']}")
 
 
-
-
 # Main app logic
 if st.button("Analyze"):
     if domain_name:
@@ -650,4 +648,3 @@ It is intended for educational purposes and security assessments.
     For suggestions or comments, please contact me at: <a href="mailto:xerxesviper@025609.xyz">xerxesviper@025609.xyz</a>
 </div>
 """, unsafe_allow_html=True)
-
