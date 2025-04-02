@@ -58,8 +58,19 @@ with st.expander("Understanding Your DNS Security Score"):
     A score below 70 indicates significant security issues that should be addressed.
     """)
 
-# Input for domain name
-domain_name = st.text_input("Domain Name:", placeholder="example.com OR www.example.com")
+# --- Add the Cache Toggle Checkbox ---
+force_refresh = st.checkbox("Force new DNS request (ignore cache)", value=False, key="force_refresh_toggle")
+
+# --- Domain Input Section ---
+domain_name = st.text_input("Domain Name:", placeholder="example.com OR www.example.com", key="domain_input")
+
+# Initialize session state if not already done
+if 'results' not in st.session_state:
+    st.session_state.results = None
+if 'domain' not in st.session_state:
+    st.session_state.domain = ""
+if 'show_results' not in st.session_state:
+    st.session_state.show_results = False
 
 
 @st.cache_resource  # Cache the created resolver object
@@ -456,51 +467,53 @@ def calculate_score(results):
 
 
 # Main analysis function
-def analyze_domain(domain):
+def _analyze_domain_fresh(domain):
+    """Performs a fresh DNS analysis without using cache."""
+    print(f"--- Running FRESH analysis for {domain} ---")  # Add print for debugging
     # First check if domain exists
     if not domain_exists(domain):
         return {
             "domain_exists": False,
             "message": "This domain does not exist in DNS records.",
-            "score": {
-                "score": 0,
-                "reasons": ["Domain does not exist (-100)"]
-            },
+            "score": {"score": 0, "reasons": ["Domain does not exist (-100)"]},
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
-    with st.spinner(f"Analyzing {domain}..."):
-        # Get basic DNS records
-        dns_records = check_basic_dns(domain)
+    # Use a spinner *within* the analysis if not using the main one
+    # with st.spinner(f"Analyzing {domain}..."): # Or keep spinner outside
+    # Get basic DNS records
+    dns_records = check_basic_dns(domain)
+    # Check SPF
+    spf_result = check_spf(dns_records.get('TXT', []))
+    # Check DMARC
+    dmarc_result = check_dmarc(domain)
+    # Check DNSSEC
+    dnssec_result = check_dnssec(domain)
+    # Check Zone Transfer
+    zone_transfer_result = check_zone_transfer(domain)
+    # Compile results
+    results = {
+        "basic_dns": dns_records,
+        "spf": spf_result,
+        "dmarc": dmarc_result,
+        "dnssec": dnssec_result,
+        "zone_transfer": zone_transfer_result,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "domain_exists": True  # Mark as existing if we got here
+    }
+    # Calculate security score
+    score_result = calculate_score(results)
+    results["score"] = score_result
+    return results
 
-        # Check SPF
-        spf_result = check_spf(dns_records.get('TXT', []))
 
-        # Check DMARC
-        dmarc_result = check_dmarc(domain)
-
-        # Check DNSSEC
-        dnssec_result = check_dnssec(domain)
-
-        # Check Zone Transfer
-        zone_transfer_result = check_zone_transfer(domain)
-
-        # Compile results
-        results = {
-            "basic_dns": dns_records,
-            "spf": spf_result,
-            "dmarc": dmarc_result,
-            "dnssec": dnssec_result,
-            "zone_transfer": zone_transfer_result,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-
-        # Calculate security score
-        score_result = calculate_score(results)
-        results["score"] = score_result
-
-        results["domain_exists"] = True
-        return results
+# --- Cached wrapper function ---
+@st.cache_data(ttl=3600)  # Cache results for 1 hour
+def analyze_domain_cached(domain):
+    """Cached wrapper that calls the fresh analysis function."""
+    print(f"--- Running CACHED analysis for {domain} ---")  # Add print for debugging
+    # This calls the actual logic, and the result of THIS call is cached
+    return _analyze_domain_fresh(domain)
 
 
 # Display results function
@@ -628,17 +641,35 @@ def display_results(results):
 
 
 # Main app logic
-if st.button("Analyze"):
+if st.button("Analyze", key="analyze_button"):
     if domain_name:
         sanitized_domain = sanitize_domain(domain_name)
         if sanitized_domain:
             st.info(f"Analyzing domain: {sanitized_domain}")
-            results = analyze_domain(sanitized_domain)
-            display_results(results)
+            # Decide whether to use cache based on checkbox
+            if force_refresh:
+                # Call the function WITHOUT the cache decorator
+                results = _analyze_domain_fresh(sanitized_domain)
+            else:
+                # Call the function WITH the cache decorator
+                results = analyze_domain_cached(sanitized_domain)
+
+            # Store results in session state for display
+            st.session_state.domain = sanitized_domain
+            st.session_state.results = results
+            st.session_state.show_results = True
         else:
             st.error("Invalid domain name format. Please enter a valid domain like 'example.com'")
+            st.session_state.show_results = False  # Hide previous results
     else:
         st.warning("Please enter a domain name first.")
+        st.session_state.show_results = False  # Hide previous results
+
+if st.session_state.show_results and st.session_state.results:
+    # This checks if the flag is True AND if there are results stored
+    st.markdown("---")
+    st.markdown(f"## Results for {st.session_state.domain}")  # Get domain from session state
+    display_results(st.session_state.results)  # Call display with stored results
 
 # Add footer with information
 st.markdown("---")
