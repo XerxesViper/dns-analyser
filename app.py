@@ -1,10 +1,10 @@
-import streamlit as st
-
+import json
+import pandas as pd
 from functions import *
 
 # Set page configuration
 st.set_page_config(
-    page_title="DNS Security Analyzer",
+    page_title="DNS Security Analyzer & Domain Health Check | DNSAnalyser Report",
     page_icon="🔒",
     layout="wide"
 )
@@ -17,13 +17,17 @@ footer {visibility: hidden;}
 #stDecoration {display:none;}
 </style>
 """
+st.markdown(
+    '<meta name="description" content="Free DNS & SSL security check for your website. Analyze SPF, DMARC, DNSSEC, CAA records & get a comprehensive security score. Protect your domain today!">',
+    unsafe_allow_html=True)
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 # Title and description
-st.title("DNS Security Analyzer")
+st.title("DNS Security Analyzer & Domain Health Check")
 st.markdown("""
-This tool analyzes DNS configurations to identify security issues, misconfigurations, 
-and vulnerabilities in DNS settings. Enter a domain name below to begin.
+ Perform a deep dive into your domain's security configuration. 
+ This tool analyzes A, AAAA, MX, TXT, SOA, NS, CNAME, CAA records, validates SPF, DMARC, DNSSEC, checks SSL/TLS certificates, and tests for zone transfer vulnerabilities. 
+ Receive a detailed security score and clear guidance. Enter your domain to begin.
 """)
 
 # Add this near the top of your app
@@ -121,6 +125,64 @@ if st.session_state.show_results and st.session_state.results:
                 st.write("**Score Deductions:**")
                 for reason in st.session_state.results["score"]["reasons"]:
                     st.caption(f"- {reason}")  # Use caption for less emphasis
+
+                # --- Add Download Buttons ---
+                st.markdown("**Download Results:**")
+                col_dl1, col_dl2, col_dl_spacer = st.columns([1, 1, 2])  # Add spacer column
+
+                results_data = st.session_state.results
+                # Sanitize domain name for use in filename
+                domain_file_part = re.sub(r'[^a-zA-Z0-9_-]', '_', st.session_state.domain)
+
+                # JSON Download
+                try:
+                    # Use default=str to handle potential non-serializable types like datetime
+                    json_string = json.dumps(results_data, indent=2, default=str)
+                    with col_dl1:
+                        st.download_button(
+                            label="📥 Download JSON (Full Details)",
+                            data=json_string,
+                            file_name=f"{domain_file_part}_dns_analysis.json",
+                            mime="application/json",
+                            key="download_json"
+                        )
+                except Exception as e:
+                    with col_dl1:
+                        st.caption(f"Error generating JSON: {e}")
+
+                # CSV Download (Summary)
+                try:
+                    # Flatten data for CSV - select key fields
+                    flat_data = {
+                        "Domain": st.session_state.domain,
+                        "Score": results_data.get("score", {}).get("score", "N/A"),
+                        "SPF_Status": results_data.get("spf", {}).get("status", "N/A"),
+                        "DMARC_Status": results_data.get("dmarc", {}).get("status", "N/A"),
+                        "DNSSEC_Status": results_data.get("dnssec", {}).get("status", "N/A"),
+                        "CAA_Status": results_data.get("caa", {}).get("status", "N/A"),
+                        "ZoneTransfer_Status": results_data.get("zone_transfer", {}).get("status", "N/A"),
+                        "SSL_Status": results_data.get("ssl_tls", {}).get("status", "N/A"),
+                        "SSL_Expiry_DaysLeft": results_data.get("ssl_tls", {}).get("details", {}).get("days_left", "N/A"),
+                        "Analysis_Timestamp": results_data.get("timestamp", "N/A")
+                    }
+                    df = pd.DataFrame([flat_data])
+                    # Use utf-8-sig encoding to handle potential BOM issues in Excel
+                    csv_string = df.to_csv(index=False, encoding='utf-8-sig')
+                    with col_dl2:
+                        st.download_button(
+                            label="📥 Download CSV (Summary)",
+                            data=csv_string,
+                            file_name=f"{domain_file_part}_dns_summary.csv",
+                            mime="text/csv",
+                            key="download_csv"
+                        )
+                except ImportError:
+                    with col_dl2:
+                        st.caption("Error: Pandas library not installed.")
+                except Exception as e:
+                    with col_dl2:
+                        st.caption(f"Error generating CSV: {e}")
+                # --- End Download Buttons ---
 
     st.markdown("---")  # Divider
 
