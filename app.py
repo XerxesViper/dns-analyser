@@ -154,7 +154,7 @@ def check_basic_dns(domain):
     results = {}
     record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'CNAME']
 
-    st.write("Checking Basic DNS Records")
+    #st.write("Checking Basic DNS Records")
 
     # Create a Streamlit progress bar
     progress_bar = st.progress(0)
@@ -192,7 +192,7 @@ def check_basic_dns(domain):
 def check_spf(txt_records):
     spf_records = []
 
-    st.write("Checking SPF Records")
+    #st.write("Checking SPF Records")
 
     for record in txt_records:
         if record.startswith('"v=spf1') or record.startswith('v=spf1'):
@@ -237,7 +237,7 @@ def check_spf(txt_records):
 
 # Function to check DMARC record
 def check_dmarc(domain):
-    st.write("Checking DMARC Records")
+    #st.write("Checking DMARC Records")
 
     resolver = get_dns_resolver()
 
@@ -295,7 +295,7 @@ def check_dmarc(domain):
 
 # Function to check DNSSEC
 def check_dnssec(domain):
-    st.write("Checking DNSSEC Records")  # Keep for debugging if needed
+    #st.write("Checking DNSSEC Records")  # Keep for debugging if needed
 
     resolver = get_dns_resolver()
 
@@ -366,7 +366,7 @@ def check_dnssec(domain):
 
 # Function to test for zone transfers
 def check_zone_transfer(domain):
-    st.write("Checking Zone Transfer Records")
+    #st.write("Checking Zone Transfer Records")
 
     resolver = get_dns_resolver()
 
@@ -411,7 +411,7 @@ def check_zone_transfer(domain):
 
 # Function to calculate security score
 def calculate_score(results):
-    st.write("Check completed")
+    #st.write("Check completed")
     score = 100
     deductions = {
         "spf_missing": 15,
@@ -468,40 +468,61 @@ def calculate_score(results):
 # Main analysis function
 def _analyze_domain_fresh(domain):
     """Performs a fresh DNS analysis without using cache."""
-    # First check if domain exists
-    if not domain_exists(domain):
-        return {
-            "domain_exists": False,
-            "message": "This domain does not exist in DNS records.",
-            "score": {"score": 0, "reasons": ["Domain does not exist (-100)"]},
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
+    print(f"--- Running FRESH analysis for {domain} ---") # Debug print
 
-    # Use a spinner *within* the analysis if not using the main one
-    # with st.spinner(f"Analyzing {domain}..."): # Or keep spinner outside
-    # Get basic DNS records
-    dns_records = check_basic_dns(domain)
-    # Check SPF
-    spf_result = check_spf(dns_records.get('TXT', []))
-    # Check DMARC
-    dmarc_result = check_dmarc(domain)
-    # Check DNSSEC
-    dnssec_result = check_dnssec(domain)
-    # Check Zone Transfer
-    zone_transfer_result = check_zone_transfer(domain)
-    # Compile results
-    results = {
-        "basic_dns": dns_records,
-        "spf": spf_result,
-        "dmarc": dmarc_result,
-        "dnssec": dnssec_result,
-        "zone_transfer": zone_transfer_result,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "domain_exists": True  # Mark as existing if we got here
-    }
-    # Calculate security score
-    score_result = calculate_score(results)
-    results["score"] = score_result
+    # --- Use st.status to show progress ---
+    with st.status(f"Analyzing {domain}...", expanded=True) as status:
+        # First check if domain exists (do this *before* showing detailed status if possible)
+        if not domain_exists(domain):
+            status.update(label="Domain Not Found!", state="error", expanded=True)
+            # Return the specific structure for non-existent domain
+            return {
+                "domain_exists": False,
+                "message": "This domain does not exist in DNS records.",
+                "score": { "score": 0, "reasons": ["Domain does not exist (-100)"] },
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+        # --- Start detailed checks ---
+        status.update(label="Checking Basic DNS Records...")
+        dns_records = check_basic_dns(domain) # This function has its own progress bar now inside the status
+        st.write("✅ Basic DNS Records Checked.") # Optional: Write inside status
+
+        status.update(label="Checking SPF Record...")
+        spf_result = check_spf(dns_records.get('TXT', []))
+        st.write("✅ SPF Record Checked.")
+
+        status.update(label="Checking DMARC Record...")
+        dmarc_result = check_dmarc(domain)
+        st.write("✅ DMARC Record Checked.")
+
+        status.update(label="Checking DNSSEC Configuration...")
+        dnssec_result = check_dnssec(domain)
+        st.write("✅ DNSSEC Configuration Checked.")
+
+        status.update(label="Checking Zone Transfer Vulnerability...")
+        zone_transfer_result = check_zone_transfer(domain)
+        st.write("✅ Zone Transfer Vulnerability Checked.")
+
+        status.update(label="Calculating Score...")
+        # Compile results (before score calculation)
+        results = {
+            "basic_dns": dns_records,
+            "spf": spf_result,
+            "dmarc": dmarc_result,
+            "dnssec": dnssec_result,
+            "zone_transfer": zone_transfer_result,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "domain_exists": True
+        }
+        score_result = calculate_score(results)
+        results["score"] = score_result
+        st.write("✅ Score Calculated.")
+
+        # --- Mark status as complete ---
+        status.update(label="Analysis Complete!", state="complete", expanded=False)
+
+    # Return results *after* the 'with' block
     return results
 
 
@@ -509,7 +530,9 @@ def _analyze_domain_fresh(domain):
 @st.cache_data(ttl=3600)  # Cache results for 1 hour
 def analyze_domain_cached(domain):
     """Cached wrapper that calls the fresh analysis function."""
-    # This calls the actual function, and the result of THIS call is cached
+    print(f"--- Running CACHED analysis for {domain} ---")
+    # Note: st.status will still run inside here if cache is missed.
+    # If cache hits, the status block won't execute, which is desired.
     return _analyze_domain_fresh(domain)
 
 
