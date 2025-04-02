@@ -54,21 +54,23 @@ with st.expander("Understanding Your DNS Security Score"):
     st.markdown("""
     ### How the DNS Security Score is Calculated
 
-    Your domain's DNS security score is based on several key factors:
+    Your domain's DNS security score (starting from 100) is based on several key factors:
 
-    | Factor | Impact | Why It Matters |
-    |--------|--------|----------------|
-    | SPF Record | -15 points if missing | Prevents email spoofing |
-    | DMARC Record | -15 points if missing | Controls email authentication policy |
-    | DNSSEC | -10 points if not implemented | Protects against DNS spoofing |
-    | Zone Transfer | -25 points if allowed | Prevents information disclosure |
-    | Multiple SPF Records | -10 points | Causes email delivery issues |
-    | SPF with +all | -20 points | Allows anyone to send as your domain |
-    | DMARC with p=none | -10 points | Only monitors but doesn't protect |
+    | Factor                     | Impact      | Why It Matters                                  |
+    |----------------------------|-------------|-------------------------------------------------|
+    | Missing SPF Record         | -15 points  | Prevents email spoofing                         |
+    | Multiple SPF Records       | -10 points  | Invalid config, causes email delivery issues    |
+    | SPF Record allows `+all`   | -20 points  | Allows anyone to send email as your domain      |
+    | Missing DMARC Record       | -15 points  | Controls email authentication policy            |
+    | DMARC Policy is `p=none`   | -10 points  | Only monitors but doesn't actively protect      |
+    | DNSSEC Not Implemented     | -10 points  | Protects against DNS spoofing/cache poisoning   |
+    | Zone Transfers Allowed     | -15 points  | Can leak internal DNS information to attackers  |
+    | Missing CAA Record         | -5 points   | Restricts which CAs can issue SSL certificates  |
 
-    A score of 90-100 indicates excellent DNS security configuration.\n
-    A score of 70-89 indicates good security with some improvements needed.\n
-    A score below 70 indicates significant security issues that should be addressed.
+    **Score Interpretation:**
+    *   **90-100:** Excellent DNS security configuration.
+    *   **70-89:** Good security, but some improvements are recommended.
+    *   **Below 70:** Significant security issues found that should be addressed.
     """)
 
 # --- Add the Cache Toggle Checkbox ---
