@@ -62,11 +62,22 @@ with st.expander("Understanding Your DNS Security Score"):
 domain_name = st.text_input("Domain Name:", placeholder="example.com OR www.example.com")
 
 
+@st.cache_resource  # Cache the created resolver object
+def get_dns_resolver():
+    """Creates and returns a configured DNS resolver instance."""
+    print("--- Creating and Caching DNS Resolver ---")  # Add print to see when it runs
+    resolver = dns.resolver.Resolver()
+    # Explicitly set reliable public nameservers
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+    # Set reasonable timeouts
+    resolver.timeout = 2.0
+    resolver.lifetime = 5.0
+    return resolver
+
+
 def domain_exists(domain):
     try:
-        # Try to resolve the domain's A record
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = ['8.8.8.8', '1.1.1.1']  # Use reliable public DNS
+        resolver = get_dns_resolver()
         resolver.resolve(domain, 'A')
         return True
     except dns.resolver.NXDOMAIN:
@@ -139,6 +150,8 @@ def check_basic_dns(domain):
     progress_bar = st.progress(0)
     status_text = st.empty()
 
+    resolver = get_dns_resolver()
+
     for i, record_type in enumerate(record_types):
         # Update progress bar and status text
         progress = i / len(record_types)
@@ -146,7 +159,7 @@ def check_basic_dns(domain):
         status_text.text(f"Checking {record_type} records...")
 
         try:
-            answers = dns.resolver.resolve(domain, record_type)
+            answers = resolver.resolve(domain, record_type)
             results[record_type] = [str(rdata) for rdata in answers]
         except Exception as e:
             results[record_type] = [f"Error: {str(e)}"]
@@ -216,9 +229,11 @@ def check_spf(txt_records):
 def check_dmarc(domain):
     st.write("Checking DMARC Records")
 
+    resolver = get_dns_resolver()
+
     try:
         dmarc_domain = f"_dmarc.{domain}"
-        answers = dns.resolver.resolve(dmarc_domain, 'TXT')
+        answers = resolver.resolve(dmarc_domain, 'TXT')
         dmarc_records = [str(rdata) for rdata in answers]
 
         valid_records = []
@@ -272,15 +287,7 @@ def check_dmarc(domain):
 def check_dnssec(domain):
     st.write("Checking DNSSEC Records")  # Keep for debugging if needed
 
-    # --- Use a consistent resolver for all checks within this function ---
-    # Create a resolver instance ONCE
-    resolver = dns.resolver.Resolver()
-    # Explicitly set reliable public nameservers known to support DNSSEC well
-    resolver.nameservers = ['8.8.8.8', '1.1.1.1']
-    # Set a reasonable timeout
-    resolver.timeout = 2.0
-    resolver.lifetime = 5.0
-    # --- End resolver configuration ---
+    resolver = get_dns_resolver()
 
     try:
         # First try to check for DS records using the configured resolver
@@ -350,9 +357,12 @@ def check_dnssec(domain):
 # Function to test for zone transfers
 def check_zone_transfer(domain):
     st.write("Checking Zone Transfer Records")
+
+    resolver = get_dns_resolver()
+
     try:
         nameservers = []
-        answers = dns.resolver.resolve(domain, 'NS')
+        answers = resolver.resolve(domain, 'NS')
         for rdata in answers:
             nameservers.append(str(rdata))
 
