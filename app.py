@@ -126,7 +126,7 @@ if st.session_state.show_results and st.session_state.results:
 
     # --- Detailed Results Tabs ---
     st.subheader("Detailed Checks")
-    display_results(st.session_state.results)  # Call display with stored results
+    display_results(st.session_state.domain, st.session_state.results)  # Call display with stored results
 
 # Add footer with information
 st.markdown("---")

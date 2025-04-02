@@ -1,11 +1,12 @@
-import streamlit as st
-import dns.resolver
+import re
+import ssl
+import time
+import socket
 import dns.zone
 import dns.query
-import socket
-import time
+import dns.resolver
+import streamlit as st
 from datetime import datetime
-import re
 
 
 @st.cache_resource  # Cache the created resolver object
@@ -402,6 +403,119 @@ def check_caa(domain):
         }
 
 
+def check_ssl_tls(domain):
+    """Checks the SSL/TLS certificate for the domain on port 443."""
+    # st.write(f"Checking SSL/TLS for {domain}") # Optional debug
+    hostname = domain  # For SNI and hostname verification
+    port = 443
+    context = ssl.create_default_context()
+    result = {
+        "status": "error",  # Default to error
+        "message": "Could not retrieve or validate certificate.",
+        "details": {}
+    }
+
+    try:
+        # Resolve domain first to handle potential NXDOMAIN early
+        # Use a basic resolver here, don't need the configured one necessarily
+        try:
+            socket.getaddrinfo(hostname, port)
+        except socket.gaierror:
+            result["message"] = f"Domain '{hostname}' could not be resolved."
+            return result
+
+        # Connect and get certificate
+        with socket.create_connection((hostname, port), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
+
+                if not cert:
+                    result["message"] = "Server did not present a certificate."
+                    return result
+
+                # --- Extract Certificate Details ---
+                expiry_date_str = cert.get('notAfter')
+                issuer_tuples = cert.get('issuer', ())
+                subject_tuples = cert.get('subject', ())
+                subject_alt_names = cert.get('subjectAltName', ())
+
+                # Parse expiry date
+                expiry_date = None
+                days_left = None
+                if expiry_date_str:
+                    try:
+                        # Common format: 'Mar 30 12:00:00 2025 GMT'
+                        expiry_date = datetime.strptime(expiry_date_str, '%b %d %H:%M:%S %Y %Z')
+                        time_diff = expiry_date - datetime.utcnow()  # Compare with UTC
+                        days_left = time_diff.days
+                    except ValueError:
+                        result["details"]["expiry_warning"] = "Could not parse expiry date format."
+
+                # Format Issuer/Subject
+                issuer = dict(x[0] for x in issuer_tuples)
+                subject = dict(x[0] for x in subject_tuples)
+
+                # Check Hostname Match (Common Name and SANs)
+                cn = subject.get('commonName')
+                alt_names = [name[1] for name in subject_alt_names if name[0].lower() == 'dns']
+                valid_hostnames = set([cn] + alt_names) if cn else set(alt_names)
+
+                hostname_match = False
+                if hostname in valid_hostnames:
+                    hostname_match = True
+                # Check wildcard match (simple check)
+                elif any(hn.startswith('*.') and hostname.endswith(hn[1:]) for hn in valid_hostnames):
+                    hostname_match = True
+
+                # --- Populate Result ---
+                result["status"] = "success"  # Assume success unless checks fail
+                result["message"] = "Certificate details retrieved."
+                result["details"] = {
+                    "subject_cn": cn,
+                    "issuer_org": issuer.get('organizationName', 'N/A'),
+                    "expiry_date": expiry_date.strftime('%Y-%m-%d') if expiry_date else "N/A",
+                    "days_left": days_left,
+                    "valid_hostnames": list(valid_hostnames),
+                    "hostname_match": hostname_match
+                }
+
+                # Add specific warnings/errors based on checks
+                if days_left is None:
+                    result["status"] = "warning"
+                    result["message"] = "Retrieved certificate, but expiry date unclear."
+                elif days_left < 0:
+                    result["status"] = "error"
+                    result["message"] = f"Certificate EXPIRED {-days_left} days ago!"
+                elif days_left < 30:
+                    result["status"] = "warning"
+                    result["message"] = f"Certificate expires soon (in {days_left} days)."
+                # Only override success message if there's an expiry issue
+                else:
+                    result["message"] = "Certificate is valid."
+
+                if not hostname_match:
+                    result["status"] = "error"  # Hostname mismatch is a critical error
+                    result["message"] += " CRITICAL: Certificate hostname mismatch!"
+
+    except socket.timeout:
+        result["message"] = f"Connection timed out connecting to {hostname}:{port}."
+    except ConnectionRefusedError:
+        result["message"] = f"Connection refused by {hostname}:{port}. (HTTPS not running?)"
+    except ssl.SSLCertVerificationError as e:
+        result["message"] = f"Certificate verification failed: {e}. (Possibly self-signed or untrusted CA)"
+        result["details"]["verification_error"] = str(e)  # Add specific error detail
+    except ssl.SSLError as e:
+        result["message"] = f"An SSL error occurred: {e}."
+    except OSError as e:  # Catch other potential socket/network errors
+        result["message"] = f"Network error: {e}"
+    except Exception as e:
+        # Catch any other unexpected errors during processing
+        # st.write(f"Unexpected SSL check error: {type(e).__name__} - {e}") # Debug
+        result["message"] = f"An unexpected error occurred during SSL check: {str(e)}"
+
+    return result
+
+
 # Function to calculate security score
 def calculate_score(results):
     # st.write("Check completed")
@@ -508,6 +622,10 @@ def analyze_domain_fresh(domain):
         CAA_result = check_caa(domain)
         st.write("✅ CAA Record Checked.")
 
+        status.update(label="Performing SSL/TLS Check...")
+        ssl_result = check_ssl_tls(domain)
+        st.write("✅ SSL/TLS Check Completed.")
+
         status.update(label="Calculating Score...")
         # Compile results (before score calculation)
         results = {
@@ -517,6 +635,7 @@ def analyze_domain_fresh(domain):
             "dnssec": dnssec_result,
             "zone_transfer": zone_transfer_result,
             "caa": CAA_result,
+            "ssl_tls": ssl_result,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "domain_exists": True
         }
@@ -541,7 +660,7 @@ def analyze_domain_cached(domain):
     return analyze_domain_fresh(domain)
 
 
-def display_results(results):  # Pass domain name here
+def display_results(domain, results):  # Pass domain name here
     # Check if domain exists (handled before calling, but good practice)
     if not results.get("domain_exists", True):
         # This part is now handled before calling display_results,
@@ -561,11 +680,11 @@ def display_results(results):  # Pass domain name here
         "📧 Email Security",
         "🔒 DNSSEC",
         "🛡️ CAA Records",
+        "📜 SSL/TLS Cert",
         "🕵️ Zone Transfer",
         "💡 Recommendations"
-        # Add "📜 SSL/TLS" later
     ]
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_titles)
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_titles)
 
     # Tab 1: Basic DNS Records
     with tab1:
@@ -648,6 +767,7 @@ def display_results(results):  # Pass domain name here
             if "recommendation" in dnssec_res:
                 st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
 
+    # Tab 4: CAA records
     with tab4:
         st.subheader("CAA (Certification Authority Authorization)")
         st.caption("""
@@ -681,8 +801,53 @@ def display_results(results):  # Pass domain name here
             if "recommendation" in caa_res:
                 st.info(f"💡 Recommendation: {caa_res['recommendation']}")
 
-    # Tab 5: Zone Transfer
+    # Tab 5: SSL/TLS check
     with tab5:
+        st.subheader("SSL/TLS Certificate Analysis (Port 443)")
+        st.caption("""
+           **What is SSL/TLS?** Encrypts communication between a browser and the web server. Essential for HTTPS.
+           **Why it matters:** Protects data privacy and integrity, builds user trust. Checks certificate validity, expiry, and hostname match.
+           """)
+        ssl_res = results["ssl_tls"]
+        details = ssl_res.get("details", {})
+
+        if ssl_res["status"] == "success":
+            st.success(f"✅ {ssl_res['message']}")
+        elif ssl_res["status"] == "warning":
+            st.warning(f"⚠️ {ssl_res['message']}")
+        else:  # Error
+            st.error(f"❌ {ssl_res['message']}")
+
+        # Display details if available
+        if details:
+            st.markdown(f"**Subject Common Name (CN):** `{details.get('subject_cn', 'N/A')}`")
+            st.markdown(f"**Issuer Organization:** `{details.get('issuer_org', 'N/A')}`")
+            st.markdown(f"**Expiry Date:** `{details.get('expiry_date', 'N/A')}`")
+
+            days_left = details.get('days_left')
+            if days_left is not None:
+                if days_left < 0:
+                    st.error(f"**Days Remaining:** Expired!")
+                elif days_left < 30:
+                    st.warning(f"**Days Remaining:** {days_left} (Expires Soon!)")
+                else:
+                    st.success(f"**Days Remaining:** {days_left}")
+
+            match = details.get('hostname_match')
+            if match is True:
+                st.success(f"**Hostname Match:** ✅ Yes (Certificate covers '{domain}')")
+            elif match is False:
+                st.error(f"**Hostname Match:** ❌ No (Certificate does NOT cover '{domain}')")
+
+            if details.get('valid_hostnames'):
+                with st.expander("Valid Hostnames Listed in Certificate (CN + SANs)"):
+                    st.write(details['valid_hostnames'])
+
+            if details.get('verification_error'):
+                st.warning(f"**Verification Note:** {details['verification_error']}")
+
+    # Tab 6: Zone Transfer
+    with tab6:
         st.subheader("Zone Transfer Vulnerability")
         st.caption("""
         **What is Zone Transfer (AXFR)?** A mechanism to replicate DNS records between servers. Should usually be restricted.\n
@@ -697,16 +862,24 @@ def display_results(results):  # Pass domain name here
         else:  # Info
             st.info(f"ℹ️ {zt_res['message']}")
 
-    # Tab 6: Recommendations
-    with tab6:
+    # Tab 7: Recommendations
+    with tab7:
         st.subheader("Summary of Recommendations")
         recommendations = []
         # ... (keep existing logic to populate recommendations) ...
+        ssl_status = results["ssl_tls"]["status"]
+        ssl_details = results["ssl_tls"].get("details", {})
 
         if recommendations:
             st.warning("⚠️ Please review the following recommendations based on the analysis:")
             for i, rec in enumerate(recommendations):
                 st.markdown(f"{i + 1}. {rec}")  # Use numbered list
+
+            if ssl_status == 'error' or (ssl_status == 'warning' and ssl_details.get('days_left', 999) < 30):
+                recommendations.append(f"**SSL/TLS:** Review certificate status: {results['ssl_tls']['message']}")
+
+            if "recommendation" in results["caa"] and results["caa"]["status"] != "success":
+                recommendations.append(f"**CAA:** {results['caa']['recommendation']}")
         else:
             st.success("✅ No critical recommendations found based on these checks!")
 
