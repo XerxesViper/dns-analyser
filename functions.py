@@ -474,7 +474,7 @@ def analyze_domain_cached(domain):
 # Display results function
 # In functions.py or wherever display_results is defined
 
-def display_results(results): # Pass domain name here
+def display_results(results):  # Pass domain name here
     # Check if domain exists (handled before calling, but good practice)
     if not results.get("domain_exists", True):
         # This part is now handled before calling display_results,
@@ -504,18 +504,18 @@ def display_results(results): # Pass domain name here
         st.subheader("DNS Records")
         st.caption("Core DNS records defining your domain's basic infrastructure.")
         for record_type, records in results["basic_dns"].items():
-            st.markdown(f"**{record_type} Records:**") # Use markdown for bold
+            st.markdown(f"**{record_type} Records:**")  # Use markdown for bold
             if not records:
-                 st.caption("No records of this type found.")
+                st.caption("No records of this type found.")
             elif "Error: The DNS query name does not exist" in records[0]:
-                 st.caption("Domain does not exist or no records of this type found.")
+                st.caption("Domain does not exist or no records of this type found.")
             elif "Error: The DNS response does not contain an answer" in records[0]:
-                 st.caption("No records of this type found.")
+                st.caption("No records of this type found.")
             elif "Error:" in records[0]:
-                 st.warning(f"⚠️ Could not retrieve records: {records[0]}")
+                st.warning(f"⚠️ Could not retrieve records: {records[0]}")
             else:
-                 for record in records:
-                     st.code(record, language=None) # Use language=None for plain text
+                for record in records:
+                    st.code(record, language=None)  # Use language=None for plain text
 
     # Tab 2: Email Security
     with tab2:
@@ -537,7 +537,7 @@ def display_results(results): # Pass domain name here
         if "record" in spf_res:
             st.code(spf_res["record"], language=None)
 
-        st.divider() # Add divider between SPF/DMARC
+        st.divider()  # Add divider between SPF/DMARC
 
         st.subheader("DMARC (Domain-based Message Authentication)")
         st.caption("""
@@ -572,14 +572,13 @@ def display_results(results): # Pass domain name here
                 for record in dnssec_res["records"]:
                     st.code(record, language=None)
         elif dnssec_res["status"] == "warning":
-             st.warning(f"⚠️ {dnssec_res['message']}")
-             if "recommendation" in dnssec_res:
+            st.warning(f"⚠️ {dnssec_res['message']}")
+            if "recommendation" in dnssec_res:
                 st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
-        else: # Info or other errors
-             st.info(f"ℹ️ {dnssec_res['message']}")
-             if "recommendation" in dnssec_res:
+        else:  # Info or other errors
+            st.info(f"ℹ️ {dnssec_res['message']}")
+            if "recommendation" in dnssec_res:
                 st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
-
 
     # Tab 4: Zone Transfer
     with tab4:
@@ -594,7 +593,7 @@ def display_results(results): # Pass domain name here
         elif zt_res["status"] == "error":
             st.error(f"❌ {zt_res['message']}")
             st.info(f"💡 Recommendation: {zt_res['recommendation']}")
-        else: # Info
+        else:  # Info
             st.info(f"ℹ️ {zt_res['message']}")
 
     # Tab 5: Recommendations
@@ -606,11 +605,9 @@ def display_results(results): # Pass domain name here
         if recommendations:
             st.warning("⚠️ Please review the following recommendations based on the analysis:")
             for i, rec in enumerate(recommendations):
-                st.markdown(f"{i+1}. {rec}") # Use numbered list
+                st.markdown(f"{i + 1}. {rec}")  # Use numbered list
         else:
             st.success("✅ No critical recommendations found based on these checks!")
 
     # Display timestamp (keep as is)
     st.caption(f"Analysis completed at: {results['timestamp']}")
-
-
