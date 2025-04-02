@@ -13,7 +13,7 @@ def get_dns_resolver():
     """Creates and returns a configured DNS resolver instance."""
     resolver = dns.resolver.Resolver()
     # Explicitly set reliable public nameservers
-    resolver.nameservers = ['8.8.8.8', '1.1.1.1'] # Google and Cloudflare
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1']  # Google and Cloudflare
     # Set reasonable timeouts
     resolver.timeout = 2.0
     resolver.lifetime = 5.0
@@ -350,8 +350,10 @@ def check_caa(domain):
     resolver = get_dns_resolver()
 
     try:
+        st.write(f"Attempting CAA lookup for {domain} using {resolver.nameservers}")  # Log resolver
         caa_answers = resolver.resolve(domain, 'CAA')
         records = [str(rdata) for rdata in caa_answers]
+        st.write(f"Successfully retrieved CAA records: {records}")  # Log success
 
         if records:
             # Check for common restrictive policies
@@ -369,6 +371,7 @@ def check_caa(domain):
                 "recommendation": "Ensure these records reflect your intended Certificate Authorities."
             }
         else:
+            st.write("CAA lookup returned answers, but the records list was empty.")  # Log empty list case
             # This case should technically be caught by NoAnswer, but added for safety
             return {
                 "status": "warning",
@@ -377,20 +380,21 @@ def check_caa(domain):
             }
 
     except dns.resolver.NoAnswer:
+        st.write(f"CAA lookup for {domain} resulted in NoAnswer.")  # Log NoAnswer
         return {
             "status": "warning",
             "message": "No CAA records found. Any CA can issue certificates for this domain.",
             "recommendation": "Consider adding CAA records to restrict certificate issuance to specific CAs (e.g., Let's Encrypt, DigiCert)."
         }
     except dns.resolver.NXDOMAIN:
-        # This should ideally be caught by domain_exists, but handle defensively
+        st.write(f"CAA lookup failed: NXDOMAIN for {domain}.")  # Log NXDOMAIN
         return {
             "status": "error",
             "message": f"Domain '{domain}' does not exist.",
             "recommendation": "Check domain spelling."
         }
     except Exception as e:
-        # st.write(f"CAA check error: {e}") # Optional debug line
+        st.write(f"CAA lookup for {domain} failed with unexpected error: {type(e).__name__} - {e}")  # Log other errors
         return {
             "status": "error",  # Changed from info to error as lookup failed
             "message": f"Could not retrieve CAA records: {str(e)}",
@@ -661,7 +665,9 @@ def display_results(results):  # Pass domain name here
                     parts = record.split(' ', 2)
                     if len(parts) == 3:
                         flag, tag, value = parts
-                        st.code(f'Flag: {flag}, Tag: {tag}, Value: {value.strip('"')}', language=None)
+                        stripped_value = value.strip('"')  # Remove quotes BEFORE the f-string
+                        st.code(f"Flag: {flag}, Tag: {tag}, Value: {stripped_value}", language=None)
+
                     else:
                         st.code(record, language=None)  # Fallback for unexpected format
             if "recommendation" in caa_res:
@@ -679,7 +685,7 @@ def display_results(results):  # Pass domain name here
     with tab5:
         st.subheader("Zone Transfer Vulnerability")
         st.caption("""
-        **What is Zone Transfer (AXFR)?** A mechanism to replicate DNS records between servers. Should usually be restricted.
+        **What is Zone Transfer (AXFR)?** A mechanism to replicate DNS records between servers. Should usually be restricted.\n
         **Why it matters:** If allowed publicly, attackers can easily download *all* your DNS records, revealing infrastructure details.
         """)
         zt_res = results["zone_transfer"]
