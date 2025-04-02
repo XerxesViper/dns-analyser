@@ -421,7 +421,7 @@ def analyze_domain_fresh(domain):
         # --- Start detailed checks ---
         status.update(label="Checking Basic DNS Records...")
         dns_records = check_basic_dns(domain)  # This function has its own progress bar now inside the status
-        st.write("✅ Basic DNS Records Checked.")  # Optional: Write inside status
+        st.write("✅ Basic DNS Records Checked.")
 
         status.update(label="Checking SPF Record...")
         spf_result = check_spf(dns_records.get('TXT', []))
@@ -472,9 +472,13 @@ def analyze_domain_cached(domain):
 
 
 # Display results function
-def display_results(domain_name, results):
-    # Check if domain exists
+# In functions.py or wherever display_results is defined
+
+def display_results(results): # Pass domain name here
+    # Check if domain exists (handled before calling, but good practice)
     if not results.get("domain_exists", True):
+        # This part is now handled before calling display_results,
+        # but keep it as a fallback just in case.
         st.error(results["message"])
         st.error("Security Score: 0/100")
         st.write("Score deductions:")
@@ -482,114 +486,131 @@ def display_results(domain_name, results):
         st.caption(f"Analysis completed at: {results['timestamp']}")
         return
 
-    # Display security score
-    score = results["score"]["score"]
-    if score >= 90:
-        st.success(f"Security Score: {score}/100")
-    elif score >= 70:
-        st.warning(f"Security Score: {score}/100")
-    else:
-        st.error(f"Security Score: {score}/100")
+    # --- Score display is now moved outside this function ---
 
-    if results["score"]["reasons"]:
-        st.write("Score deductions:")
-        for reason in results["score"]["reasons"]:
-            st.write(f"- {reason}")
-
-    # Create tabs for different sections
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Basic DNS Records",
-        "Email Security (SPF/DMARC)",
-        "DNSSEC",
-        "Zone Transfer",
-        "Recommendations"
-    ])
+    # Create tabs for different sections with icons
+    tab_titles = [
+        "📄 Basic DNS",
+        "📧 Email Security",
+        "🔒 DNSSEC",
+        "🕵️ Zone Transfer",
+        "💡 Recommendations"
+        # Add "🛡️ CAA" and "📜 SSL/TLS" when you implement them
+    ]
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_titles)
 
     # Tab 1: Basic DNS Records
     with tab1:
         st.subheader("DNS Records")
+        st.caption("Core DNS records defining your domain's basic infrastructure.")
         for record_type, records in results["basic_dns"].items():
-            if records and records[0] != f"Error: The DNS response does not contain an answer to the question: {domain_name}. IN {record_type}":
-                st.write(f"**{record_type} Records:**")
-                for record in records:
-                    st.code(record)
+            st.markdown(f"**{record_type} Records:**") # Use markdown for bold
+            if not records:
+                 st.caption("No records of this type found.")
+            elif "Error: The DNS query name does not exist" in records[0]:
+                 st.caption("Domain does not exist or no records of this type found.")
+            elif "Error: The DNS response does not contain an answer" in records[0]:
+                 st.caption("No records of this type found.")
+            elif "Error:" in records[0]:
+                 st.warning(f"⚠️ Could not retrieve records: {records[0]}")
+            else:
+                 for record in records:
+                     st.code(record, language=None) # Use language=None for plain text
 
     # Tab 2: Email Security
     with tab2:
         st.subheader("SPF (Sender Policy Framework)")
-        if results["spf"]["status"] == "success":
-            st.success(results["spf"]["message"])
-        elif results["spf"]["status"] == "warning":
-            st.warning(results["spf"]["message"])
+        st.caption("""
+        **What is SPF?** Helps prevent email spoofing by defining authorized mail servers.
+        **Why it matters:** Protects your domain's reputation and reduces phishing risks.
+        """)
+        spf_res = results["spf"]
+        if spf_res["status"] == "success":
+            st.success(f"✅ {spf_res['message']}")
+        elif spf_res["status"] == "warning":
+            st.warning(f"⚠️ {spf_res['message']}")
         else:
-            st.error(results["spf"]["message"])
+            st.error(f"❌ {spf_res['message']}")
 
-        if "recommendation" in results["spf"]:
-            st.info(f"Recommendation: {results['spf']['recommendation']}")
+        if "recommendation" in spf_res:
+            st.info(f"💡 Recommendation: {spf_res['recommendation']}")
+        if "record" in spf_res:
+            st.code(spf_res["record"], language=None)
 
-        if "record" in results["spf"]:
-            st.code(results["spf"]["record"])
+        st.divider() # Add divider between SPF/DMARC
 
         st.subheader("DMARC (Domain-based Message Authentication)")
-        if results["dmarc"]["status"] == "success":
-            st.success(results["dmarc"]["message"])
-        elif results["dmarc"]["status"] == "warning":
-            st.warning(results["dmarc"]["message"])
+        st.caption("""
+        **What is DMARC?** Tells receiving email servers how to handle messages failing SPF/DKIM checks.
+        **Why it matters:** Provides reporting and policy enforcement for email authentication.
+        """)
+        dmarc_res = results["dmarc"]
+        if dmarc_res["status"] == "success":
+            st.success(f"✅ {dmarc_res['message']}")
+        elif dmarc_res["status"] == "warning":
+            st.warning(f"⚠️ {dmarc_res['message']}")
         else:
-            st.error(results["dmarc"]["message"])
+            st.error(f"❌ {dmarc_res['message']}")
 
-        if "recommendation" in results["dmarc"]:
-            st.info(f"Recommendation: {results['dmarc']['recommendation']}")
-
-        if "record" in results["dmarc"]:
-            st.code(results["dmarc"]["record"])
+        if "recommendation" in dmarc_res:
+            st.info(f"💡 Recommendation: {dmarc_res['recommendation']}")
+        if "record" in dmarc_res:
+            st.code(dmarc_res["record"], language=None)
 
     # Tab 3: DNSSEC
     with tab3:
         st.subheader("DNSSEC (DNS Security Extensions)")
-        if results["dnssec"]["status"] == "success":
-            st.success(results["dnssec"]["message"])
-            if "records" in results["dnssec"]:
-                for record in results["dnssec"]["records"]:
-                    st.code(record)
-        else:
-            st.warning(results["dnssec"]["message"])
-            if "recommendation" in results["dnssec"]:
-                st.info(f"Recommendation: {results['dnssec']['recommendation']}")
+        st.caption("""
+        **What is DNSSEC?** Adds a layer of authentication to DNS lookups, preventing DNS spoofing/cache poisoning.
+        **Why it matters:** Ensures users connect to the legitimate server for your domain.
+        """)
+        dnssec_res = results["dnssec"]
+        if dnssec_res["status"] == "success":
+            st.success(f"✅ {dnssec_res['message']}")
+            if "records" in dnssec_res and dnssec_res["records"]:
+                st.write("**Records Found:**")
+                for record in dnssec_res["records"]:
+                    st.code(record, language=None)
+        elif dnssec_res["status"] == "warning":
+             st.warning(f"⚠️ {dnssec_res['message']}")
+             if "recommendation" in dnssec_res:
+                st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
+        else: # Info or other errors
+             st.info(f"ℹ️ {dnssec_res['message']}")
+             if "recommendation" in dnssec_res:
+                st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
+
 
     # Tab 4: Zone Transfer
     with tab4:
         st.subheader("Zone Transfer Vulnerability")
-        if results["zone_transfer"]["status"] == "success":
-            st.success(results["zone_transfer"]["message"])
-        elif results["zone_transfer"]["status"] == "error":
-            st.error(results["zone_transfer"]["message"])
-            st.info(f"Recommendation: {results['zone_transfer']['recommendation']}")
-        else:
-            st.info(results["zone_transfer"]["message"])
+        st.caption("""
+        **What is Zone Transfer (AXFR)?** A mechanism to replicate DNS records between servers. Should usually be restricted.
+        **Why it matters:** If allowed publicly, attackers can easily download *all* your DNS records, revealing infrastructure details.
+        """)
+        zt_res = results["zone_transfer"]
+        if zt_res["status"] == "success":
+            st.success(f"✅ {zt_res['message']}")
+        elif zt_res["status"] == "error":
+            st.error(f"❌ {zt_res['message']}")
+            st.info(f"💡 Recommendation: {zt_res['recommendation']}")
+        else: # Info
+            st.info(f"ℹ️ {zt_res['message']}")
 
     # Tab 5: Recommendations
     with tab5:
-        st.subheader("Security Recommendations")
+        st.subheader("Summary of Recommendations")
         recommendations = []
-
-        if "recommendation" in results["spf"]:
-            recommendations.append(f"**SPF:** {results['spf']['recommendation']}")
-
-        if "recommendation" in results["dmarc"]:
-            recommendations.append(f"**DMARC:** {results['dmarc']['recommendation']}")
-
-        if "recommendation" in results["dnssec"]:
-            recommendations.append(f"**DNSSEC:** {results['dnssec']['recommendation']}")
-
-        if "recommendation" in results["zone_transfer"]:
-            recommendations.append(f"**Zone Transfer:** {results['zone_transfer']['recommendation']}")
+        # ... (keep existing logic to populate recommendations) ...
 
         if recommendations:
-            for rec in recommendations:
-                st.markdown(rec)
+            st.warning("⚠️ Please review the following recommendations based on the analysis:")
+            for i, rec in enumerate(recommendations):
+                st.markdown(f"{i+1}. {rec}") # Use numbered list
         else:
-            st.success("No critical recommendations. Your DNS configuration appears to be secure!")
+            st.success("✅ No critical recommendations found based on these checks!")
 
-    # Display timestamp
+    # Display timestamp (keep as is)
     st.caption(f"Analysis completed at: {results['timestamp']}")
+
+

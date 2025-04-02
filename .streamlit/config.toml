@@ -1,0 +1,8 @@
+# .streamlit/config.toml
+
+[theme]
+primaryColor="#1E88E5"  # A nice blue
+backgroundColor="#F0F2F6" # Light gray background
+secondaryBackgroundColor="#FFFFFF" # White for containers/cards
+textColor="#31333F"
+font="sans serif" # Or "serif" or "monospace"

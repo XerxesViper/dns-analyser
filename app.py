@@ -93,10 +93,40 @@ if st.button("Analyze", key="analyze_button"):
         st.session_state.show_results = False  # Hide previous results
 
 if st.session_state.show_results and st.session_state.results:
-    # This checks if the flag is True AND if there are results stored
     st.markdown("---")
-    st.markdown(f"## Results for {st.session_state.domain}")  # Get domain from session state
-    display_results(st.session_state.domain, st.session_state.results)  # Call display with stored results
+
+    # --- Score Summary Area ---
+    with st.container():  # Use a container for the summary
+        st.subheader(f"Analysis Summary for: {st.session_state.domain}")  # Use subheader
+
+        score = st.session_state.results["score"]["score"]
+        score_delta = None  # Placeholder if you add history later
+
+        # Use columns for score metric and text summary
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            st.metric(label="Overall DNS Security Score", value=f"{score}/100", delta=score_delta)
+        with col2:
+            if score >= 90:
+                st.success("✅ Excellent Configuration: Your DNS settings appear secure and well-configured.")
+            elif score >= 70:
+                st.warning(f"⚠️ Good Configuration: Some improvements recommended. See tabs below for details.")
+            elif not domain_exists(st.session_state.domain):
+                st.error(f"❌ Domain may not exist or could not be found.")
+            else:
+                st.error(f"❌ Needs Attention: Significant issues found. Please review the details in the tabs below.")
+
+            # Display score deductions clearly
+            if st.session_state.results["score"]["reasons"]:
+                st.write("**Score Deductions:**")
+                for reason in st.session_state.results["score"]["reasons"]:
+                    st.caption(f"- {reason}")  # Use caption for less emphasis
+
+    st.markdown("---")  # Divider
+
+    # --- Detailed Results Tabs ---
+    st.subheader("Detailed Checks")
+    display_results(st.session_state.results)  # Call display with stored results
 
 # Add footer with information
 st.markdown("---")
