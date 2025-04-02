@@ -13,7 +13,7 @@ def get_dns_resolver():
     """Creates and returns a configured DNS resolver instance."""
     resolver = dns.resolver.Resolver()
     # Explicitly set reliable public nameservers
-    resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+    resolver.nameservers = ['8.8.8.8', '1.1.1.1'] # Google and Cloudflare
     # Set reasonable timeouts
     resolver.timeout = 2.0
     resolver.lifetime = 5.0
@@ -344,6 +344,60 @@ def check_zone_transfer(domain):
         }
 
 
+def check_caa(domain):
+    """Checks for CAA DNS records."""
+
+    resolver = get_dns_resolver()
+
+    try:
+        caa_answers = resolver.resolve(domain, 'CAA')
+        records = [str(rdata) for rdata in caa_answers]
+
+        if records:
+            # Check for common restrictive policies
+            issue_wild_present = any('issuewild' in r.lower() for r in records)
+            issue_present = any('issue ' in r.lower() for r in records)  # Space after issue is important
+
+            message = "CAA records found, specifying allowed CAs."
+            if not issue_wild_present and not issue_present:
+                message = "CAA records found, but may not explicitly restrict issuance (e.g., only iodef). Review records."
+
+            return {
+                "status": "success",
+                "message": message,
+                "records": records,
+                "recommendation": "Ensure these records reflect your intended Certificate Authorities."
+            }
+        else:
+            # This case should technically be caught by NoAnswer, but added for safety
+            return {
+                "status": "warning",
+                "message": "No CAA records found. Any CA can issue certificates for this domain.",
+                "recommendation": "Consider adding CAA records to restrict certificate issuance to specific CAs (e.g., Let's Encrypt, DigiCert)."
+            }
+
+    except dns.resolver.NoAnswer:
+        return {
+            "status": "warning",
+            "message": "No CAA records found. Any CA can issue certificates for this domain.",
+            "recommendation": "Consider adding CAA records to restrict certificate issuance to specific CAs (e.g., Let's Encrypt, DigiCert)."
+        }
+    except dns.resolver.NXDOMAIN:
+        # This should ideally be caught by domain_exists, but handle defensively
+        return {
+            "status": "error",
+            "message": f"Domain '{domain}' does not exist.",
+            "recommendation": "Check domain spelling."
+        }
+    except Exception as e:
+        # st.write(f"CAA check error: {e}") # Optional debug line
+        return {
+            "status": "error",  # Changed from info to error as lookup failed
+            "message": f"Could not retrieve CAA records: {str(e)}",
+            "recommendation": "DNS lookup failed. Check domain or try again later."
+        }
+
+
 # Function to calculate security score
 def calculate_score(results):
     # st.write("Check completed")
@@ -355,7 +409,8 @@ def calculate_score(results):
         "dmarc_missing": 15,
         "dmarc_none": 10,
         "dnssec_missing": 10,
-        "zone_transfer": 25
+        "zone_transfer": 15,
+        "caa_missing": 5
     }
 
     reasons = []
@@ -390,6 +445,12 @@ def calculate_score(results):
     if results["zone_transfer"]["status"] == "error":
         score -= deductions["zone_transfer"]
         reasons.append("Zone transfers allowed (-25)")
+
+    if results["caa"]["status"] == "warning":
+        # Check if the warning is specifically about missing records
+        if "No CAA records found" in results["caa"]["message"]:
+            score -= deductions["caa_missing"]
+            reasons.append("Missing CAA record (-5)")
 
     # Ensure score doesn't go below 0
     score = max(0, score)
@@ -439,6 +500,10 @@ def analyze_domain_fresh(domain):
         zone_transfer_result = check_zone_transfer(domain)
         st.write("✅ Zone Transfer Vulnerability Checked.")
 
+        status.update(label="Checking CAA Records...")
+        CAA_result = check_caa(domain)
+        st.write("✅ CAA Record Checked.")
+
         status.update(label="Calculating Score...")
         # Compile results (before score calculation)
         results = {
@@ -447,6 +512,7 @@ def analyze_domain_fresh(domain):
             "dmarc": dmarc_result,
             "dnssec": dnssec_result,
             "zone_transfer": zone_transfer_result,
+            "caa": CAA_result,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "domain_exists": True
         }
@@ -471,9 +537,6 @@ def analyze_domain_cached(domain):
     return analyze_domain_fresh(domain)
 
 
-# Display results function
-# In functions.py or wherever display_results is defined
-
 def display_results(results):  # Pass domain name here
     # Check if domain exists (handled before calling, but good practice)
     if not results.get("domain_exists", True):
@@ -493,11 +556,12 @@ def display_results(results):  # Pass domain name here
         "📄 Basic DNS",
         "📧 Email Security",
         "🔒 DNSSEC",
+        "🛡️ CAA Records",
         "🕵️ Zone Transfer",
         "💡 Recommendations"
-        # Add "🛡️ CAA" and "📜 SSL/TLS" when you implement them
+        # Add "📜 SSL/TLS" later
     ]
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_titles)
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_titles)
 
     # Tab 1: Basic DNS Records
     with tab1:
@@ -580,8 +644,39 @@ def display_results(results):  # Pass domain name here
             if "recommendation" in dnssec_res:
                 st.info(f"💡 Recommendation: {dnssec_res['recommendation']}")
 
-    # Tab 4: Zone Transfer
     with tab4:
+        st.subheader("CAA (Certification Authority Authorization)")
+        st.caption("""
+        **What is CAA?** Specifies which Certificate Authorities (CAs) are allowed to issue SSL/TLS certificates for your domain.
+        **Why it matters:** Helps prevent unauthorized or mis-issued certificates, enhancing web security.
+        """)
+        caa_res = results["caa"]
+        if caa_res["status"] == "success":
+            st.success(f"✅ {caa_res['message']}")
+            if "records" in caa_res and caa_res["records"]:
+                st.write("**Records Found:**")
+                for record in caa_res["records"]:
+                    # Format CAA records for better readability
+                    # Example record: '0 issue "letsencrypt.org"'
+                    parts = record.split(' ', 2)
+                    if len(parts) == 3:
+                        flag, tag, value = parts
+                        st.code(f'Flag: {flag}, Tag: {tag}, Value: {value.strip('"')}', language=None)
+                    else:
+                        st.code(record, language=None)  # Fallback for unexpected format
+            if "recommendation" in caa_res:
+                st.info(f"💡 Recommendation: {caa_res['recommendation']}")
+        elif caa_res["status"] == "warning":
+            st.warning(f"⚠️ {caa_res['message']}")
+            if "recommendation" in caa_res:
+                st.info(f"💡 Recommendation: {caa_res['recommendation']}")
+        else:  # Error
+            st.error(f"❌ {caa_res['message']}")
+            if "recommendation" in caa_res:
+                st.info(f"💡 Recommendation: {caa_res['recommendation']}")
+
+    # Tab 5: Zone Transfer
+    with tab5:
         st.subheader("Zone Transfer Vulnerability")
         st.caption("""
         **What is Zone Transfer (AXFR)?** A mechanism to replicate DNS records between servers. Should usually be restricted.
@@ -596,8 +691,8 @@ def display_results(results):  # Pass domain name here
         else:  # Info
             st.info(f"ℹ️ {zt_res['message']}")
 
-    # Tab 5: Recommendations
-    with tab5:
+    # Tab 6: Recommendations
+    with tab6:
         st.subheader("Summary of Recommendations")
         recommendations = []
         # ... (keep existing logic to populate recommendations) ...
