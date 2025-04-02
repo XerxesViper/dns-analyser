@@ -2,12 +2,31 @@ import json
 import pandas as pd
 from functions import *
 
-# Set page configuration
+favicon_url = "https://raw.githubusercontent.com/XerxesViper/dns-analyser/favicon.ico"
+preview_image_url = "https://raw.githubusercontent.com/XerxesViper/dns-analyser/preview.jpg"
+
+page_url = "https://www.dnsanalyser.report/"
+page_title = "DNSAnalyser Report | Free DNS & SSL Security Check"
+page_description = "Instantly check your domain's DNS security score (SPF, DMARC, DNSSEC, CAA), SSL certificate, and common vulnerabilities. Get your free report!"
+
 st.set_page_config(
-    page_title="DNS Security Analyzer & Domain Health Check | DNSAnalyser Report",
-    page_icon="🔒",
+    page_title=page_title,
+    page_icon=favicon_url,
     layout="wide"
 )
+
+st.markdown(f"""
+    <meta property="og:title" content="{page_title}">
+    <meta property="og:description" content="{page_description}">
+    <meta property="og:image" content="{preview_image_url}">
+    <meta property="og:url" content="{page_url}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{page_title}">
+    <meta name="twitter:description" content="{page_description}">
+    <meta name="twitter:image" content="{preview_image_url}">
+""", unsafe_allow_html=True)
+
+st.markdown(f'<meta name="description" content="{page_description}">', unsafe_allow_html=True)
 
 hide_menu_style = """
 <style>
@@ -17,20 +36,15 @@ footer {visibility: hidden;}
 #stDecoration {display:none;}
 </style>
 """
-st.markdown(
-    '<meta name="description" content="Free DNS & SSL security check for your website. Analyze SPF, DMARC, DNSSEC, CAA records & get a comprehensive security score. Protect your domain today!">',
-    unsafe_allow_html=True)
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
-# Title and description
 st.title("DNS Security Analyzer & Domain Health Check")
 st.markdown("""
- Perform a deep dive into your domain's security configuration. 
- This tool analyzes A, AAAA, MX, TXT, SOA, NS, CNAME, CAA records, validates SPF, DMARC, DNSSEC, checks SSL/TLS certificates, and tests for zone transfer vulnerabilities. 
+ Perform a deep dive into your domain's security configuration.
+ This tool analyzes A, AAAA, MX, TXT, SOA, NS, CNAME, CAA records, validates SPF, DMARC, DNSSEC, checks SSL/TLS certificates, and tests for zone transfer vulnerabilities.
  Receive a detailed security score and clear guidance. Enter your domain to begin.
 """)
 
-# Add this near the top of your app
 st.info("""
 **Note:** If you receive unexpected results or errors, please consider temporarily disabling any VPN 
 or proxy services you may be using, as they can sometimes interfere with DNS lookups.
