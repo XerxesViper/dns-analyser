@@ -54,7 +54,7 @@ with st.expander("Understanding Your DNS Security Score"):
     """)
 
 # --- Add the Cache Toggle Checkbox ---
-force_refresh = st.checkbox("Force new DNS request (ignore cache)", value=False, key="force_refresh_toggle")
+force_refresh = st.checkbox("Force new DNS request (ignore cache)", value=True, key="force_refresh_toggle")
 
 # --- Domain Input Section ---
 domain_name = st.text_input("Domain Name:", placeholder="example.com OR www.example.com", key="domain_input")

@@ -14,7 +14,15 @@ def get_dns_resolver():
     """Creates and returns a configured DNS resolver instance."""
     resolver = dns.resolver.Resolver()
     # Explicitly set reliable public nameservers
-    resolver.nameservers = ['8.8.8.8', '1.1.1.1']  # Google and Cloudflare
+    resolver.nameservers = [
+        '8.8.8.8',
+        '8.8.4.4',
+        '1.1.1.1',
+        '1.0.0.1',
+        '9.9.9.9',
+        '208.67.222.222',
+        '149.112.112.112',
+        '208.67.220.220']  # Google, Cloudflare, Quad9, Cisco(OpenDNS)
     # Set reasonable timeouts
     resolver.timeout = 2.0
     resolver.lifetime = 5.0
@@ -582,7 +590,6 @@ def calculate_score(results):
 # Main analysis function
 def analyze_domain_fresh(domain):
     """Performs a fresh DNS analysis without using cache."""
-    print(f"--- Running FRESH analysis for {domain} ---")  # Debug print
 
     # --- Use st.status to show progress ---
     with st.status(f"Analyzing {domain}...", expanded=True) as status:
@@ -654,7 +661,7 @@ def analyze_domain_fresh(domain):
 @st.cache_data(ttl=3600)  # Cache results for 1 hour
 def analyze_domain_cached(domain):
     """Cached wrapper that calls the fresh analysis function."""
-    print(f"--- Running CACHED analysis for {domain} ---")
+
     # Note: st.status will still run inside here if cache is missed.
     # If cache hits, the status block won't execute, which is desired.
     return analyze_domain_fresh(domain)
