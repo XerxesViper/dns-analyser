@@ -76,7 +76,6 @@ if 'show_results' not in st.session_state:
 @st.cache_resource  # Cache the created resolver object
 def get_dns_resolver():
     """Creates and returns a configured DNS resolver instance."""
-    print("--- Creating and Caching DNS Resolver ---")  # Add print to see when it runs
     resolver = dns.resolver.Resolver()
     # Explicitly set reliable public nameservers
     resolver.nameservers = ['8.8.8.8', '1.1.1.1']
@@ -469,7 +468,6 @@ def calculate_score(results):
 # Main analysis function
 def _analyze_domain_fresh(domain):
     """Performs a fresh DNS analysis without using cache."""
-    print(f"--- Running FRESH analysis for {domain} ---")  # Add print for debugging
     # First check if domain exists
     if not domain_exists(domain):
         return {
@@ -511,8 +509,7 @@ def _analyze_domain_fresh(domain):
 @st.cache_data(ttl=3600)  # Cache results for 1 hour
 def analyze_domain_cached(domain):
     """Cached wrapper that calls the fresh analysis function."""
-    print(f"--- Running CACHED analysis for {domain} ---")  # Add print for debugging
-    # This calls the actual logic, and the result of THIS call is cached
+    # This calls the actual function, and the result of THIS call is cached
     return _analyze_domain_fresh(domain)
 
 
