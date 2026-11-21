@@ -1,29 +1,24 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM python:3.13-slim
 
-# Set the working directory in the container
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8080
+
 WORKDIR /app
 
-# Copy the requirements file into the container at /app
 COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Install any needed packages specified in requirements.txt
-# --no-cache-dir reduces image size
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code into the container at /app
 COPY . .
 
-# Make port 8080 available to the world outside this container
-# Cloud Run uses the PORT environment variable, typically 8080
+# Run as an unprivileged user
+RUN useradd --create-home --uid 10001 app && chown -R app:app /app
+USER app
+
 EXPOSE 8080
 
-# Define environment variable for the port Cloud Run expects
-ENV PORT=8080
-ENV PYTHONUNBUFFERED=TRUE
+HEALTHCHECK --interval=60s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/_stcore/health', timeout=4)" || exit 1
 
-# Run app.py when the container launches using Streamlit
-# Listen on 0.0.0.0 and the port specified by Cloud Run ($PORT)
-# --server.headless=true is recommended for containerized environments
-# Use shell form for CMD to ensure $PORT expansion
-CMD streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+CMD ["sh", "-c", "streamlit run app.py --server.port ${PORT} --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"]
