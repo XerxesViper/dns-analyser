@@ -3,9 +3,9 @@ import pandas as pd
 from functions import *
 
 favicon_url = "https://raw.githubusercontent.com/XerxesViper/dns-analyser/refs/heads/main/favicon.ico"
-preview_image_url = "https://github.com/XerxesViper/dns-analyser/blob/5e2c4f9f2692918547bdabc8bcd919e30f0fac69/preview.jpg"
+preview_image_url = "https://raw.githubusercontent.com/XerxesViper/dns-analyser/main/preview.jpg"
 
-page_url = "https://www.dnsanalyser.report/"
+page_url = "https://dns.xerxesviper.fyi/"
 page_title = "DNSAnalyser Report | Free DNS & SSL Security Check"
 page_description = "Instantly check your domain's DNS security score (SPF, DMARC, DNSSEC, CAA), SSL certificate, and common vulnerabilities. Get your free report!"
 
