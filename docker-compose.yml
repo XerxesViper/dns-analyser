@@ -11,8 +11,9 @@ services:
       - "127.0.0.1:9000:8080"
     read_only: true
     tmpfs:
-      - /tmp
-      - /home/app
+      # writable scratch space for the non-root user (uid 10001) on a read-only rootfs
+      - /tmp:mode=1777
+      - /home/app:uid=10001,gid=10001,mode=0700
     security_opt:
       - no-new-privileges:true
     cap_drop:
